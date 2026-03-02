@@ -30,11 +30,6 @@ foreach (string file in files)
     Gbx<CGameCtnReplayRecord> gbx = Gbx.Parse<CGameCtnReplayRecord>(file);
     CGameCtnReplayRecord record = gbx.Node;
     if (record.RecordData == null) continue;
-    if (newBlock.RecordData == null) {
-        newBlock.RecordData = record.RecordData;
-        entListElem = newBlock.RecordData.EntList[0];
-        continue;
-    }
 
     // add clips
     List<CPlugEntRecordData.EntRecordListElem> entries = record.RecordData.EntList
@@ -42,7 +37,7 @@ foreach (string file in files)
 
     //check for big jumps in pos, indicator for respawn, remove all previous entries
     foreach (var entry in entries) {
-    int? lastRespawnIndex = null;
+        int? lastRespawnIndex = null;
         for (int i = 1; i < entry.Samples.Count; i++)
         {
             CSceneVehicleVis.EntRecordDelta prev = entry.Samples[i-1] as CSceneVehicleVis.EntRecordDelta;
@@ -59,7 +54,12 @@ foreach (string file in files)
         if (lastRespawnIndex != null) {
             entry.Samples.RemoveRange(0, lastRespawnIndex.Value-1);
         }
-        entListElem.Samples.AddRange(entry.Samples);
+        if (newBlock.RecordData == null) {
+            newBlock.RecordData = record.RecordData;
+            entListElem = entry;
+        } else {
+            entListElem.Samples.AddRange(entry.Samples);
+        }
     }
 
     if (newBlock.GhostName == null) {
