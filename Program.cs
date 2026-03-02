@@ -12,26 +12,31 @@ string path = @"C:\Users\Tobias\Documents\Trackmania2020\Replays\CutTest"; // se
 
 string[] files = Directory.GetFiles(path, "*.Replay.Gbx", SearchOption.AllDirectories);
 
-CGameCtnReplayRecord? segmentedRun = null;
+CGameCtnMediaClip segmentedRun = new CGameCtnMediaClip();
+segmentedRun.CreateChunk<CGameCtnMediaClip.Chunk0307900D>().Version = 1;
+segmentedRun.CreateChunk<CGameCtnMediaClip.Chunk0307900E>().Data = new byte[8];
+CGameCtnMediaTrack newTrack = new CGameCtnMediaTrack();
+newTrack.CreateChunk<CGameCtnMediaTrack.Chunk03078001>();
+newTrack.CreateChunk<CGameCtnMediaTrack.Chunk03078005>().Version = 1;
+CGameCtnMediaBlockEntity newBlock = new CGameCtnMediaBlockEntity();
+newBlock.CreateChunk<CGameCtnMediaBlockEntity.Chunk0329F000>();
+newBlock.CreateChunk<CGameCtnMediaBlockEntity.Chunk0329F002>();
+segmentedRun.Tracks.Add(newTrack);
+newTrack.Blocks.Add(newBlock);
+CPlugEntRecordData.EntRecordListElem? entListElem = null;
 
 foreach (string file in files)
 {
     Gbx<CGameCtnReplayRecord> gbx = Gbx.Parse<CGameCtnReplayRecord>(file);
     CGameCtnReplayRecord record = gbx.Node;
     if (record.RecordData == null) continue;
-
-    if (segmentedRun == null) {
-        segmentedRun = record;
-        // maybe clear other stuff
+    if (newBlock.RecordData == null) {
+        newBlock.RecordData = record.RecordData;
+        entListElem = newBlock.RecordData.EntList[0];
         continue;
     }
 
     // add clips
-    CGameCtnMediaTrack track = new CGameCtnMediaTrack();
-    CGameCtnMediaBlockEntity trackEntity = new CGameCtnMediaBlockEntity();
-    track.Blocks.Add(trackEntity);
-    trackEntity.GhostName = record.Ghosts[0].GhostNickname;
-    trackEntity.PlayerModel = new Ident("CarSport","Common","Nadeo");
     List<CPlugEntRecordData.EntRecordListElem> entries = record.RecordData.EntList
             .Where(x => x.Samples.Count > 20 && x.Samples.First() is CSceneVehicleVis.EntRecordDelta).ToList(); //20 is an aproximate to not select incomplete entries
 
@@ -54,11 +59,12 @@ foreach (string file in files)
         if (lastRespawnIndex != null) {
             entry.Samples.RemoveRange(0, lastRespawnIndex.Value-1);
         }
+        entListElem.Samples.AddRange(entry.Samples);
     }
 
-    trackEntity.RecordData = new CPlugEntRecordData();
-    trackEntity.RecordData.EntList.AddRange(entries);
-
+    if (newBlock.GhostName == null) {
+        newBlock.GhostName = record.Ghosts[0].GhostNickname;
+        newBlock.PlayerModel = record.Ghosts[0].PlayerModel;
+    }
 }
-
-segmentedRun?.Save(path + @"\SegmentedRun.Replay.Gbx");
+segmentedRun.Save(path + @"\SegmentedRun.Clip.Gbx");
