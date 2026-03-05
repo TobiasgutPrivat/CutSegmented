@@ -53,20 +53,26 @@ static class SegmentedRun {
 
             if (lastSegment != null) {
                 //find closest key in lastSegment for the start of the new segment
-                TimeSingle closestTime = TimeSingle.Zero; // offset relative to previous segment
+                int closestIndex = 0; // offset relative to previous segment
                 double closestDistance = double.MaxValue;
+                int index = 0;
                 foreach (var split in lastSegment) {
-                    var distance = Math.Sqrt(
-                        Math.Pow(split.Position.X - firstElement.Position.X, 2) +
-                        Math.Pow(split.Position.Y - firstElement.Position.Y, 2) +
-                        Math.Pow(split.Position.Z - firstElement.Position.Z, 2)
-                    );
+                    var distance = getDistance(firstElement, split);
                     if (distance < closestDistance) {
                         closestDistance = distance;  
                         //TODO maybe align more precisely according to where in between 2 closest keys the new segment starts
-                        closestTime = split.Time;
+                        closestIndex = index;
                     }
+                    index++;
                 }
+                // calc
+                int secondClosest = getDistance(firstElement, lastSegment[closestIndex + 1]) < getDistance(firstElement, lastSegment[Math.Max(closestIndex-1,0)]) ? closestIndex + 1 : Math.Max(closestIndex-1,0);
+                float firstDistance = getDistance(firstElement, lastSegment[closestIndex]);
+                float secondDistance = getDistance(firstElement, lastSegment[secondClosest]);
+                float firstWeight = 1 - (firstDistance / (firstDistance + secondDistance));
+                float secondWeight = 1 - firstWeight;
+                TimeSingle closestTime = lastSegment[closestIndex].Time * firstWeight + lastSegment[secondClosest].Time * secondWeight; // aproximate to the middle of the 2 closest keys, adjust as needed
+
                 block.Keys[0].Time = lastBlock.Keys[0].Time - lastBlock.StartOffset + closestTime; // set start key to matching time in previous segment
                 lastBlock.Keys[1].Time = block.Keys[0].Time; // set end key of previous segment to the new start time
             } else {
@@ -104,5 +110,10 @@ static class SegmentedRun {
         segmentedRun.Tracks.Add(cameraTrack);
 
         return segmentedRun;
+    }
+
+    static float getDistance(CSceneVehicleVis.EntRecordDelta a, CSceneVehicleVis.EntRecordDelta b) {
+        Vec3 diffrence = b.Position - a.Position;
+        return (float)Math.Sqrt(diffrence.X * diffrence.X + diffrence.Y * diffrence.Y + diffrence.Z * diffrence.Z);
     }
 }
