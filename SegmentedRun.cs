@@ -77,12 +77,31 @@ static class SegmentedRun {
             
             lastSegment = segment;
             lastBlock = block;
-            block.GhostName = (segmentedRun.Tracks.Count + 1).ToString();
+            track.Name = $"Segment {segmentedRun.Tracks.Count + 1}";
 
             segmentedRun.Tracks.Add(track);
         }
 
+        // add camera track
+        var cameraTrack = new CGameCtnMediaTrack();
+        cameraTrack.CreateChunk<CGameCtnMediaTrack.Chunk03078001>();
+        cameraTrack.CreateChunk<CGameCtnMediaTrack.Chunk03078005>().Version = 1;
+        cameraTrack.Name = $"Player camera";
+        var blocks = new List<CGameCtnMediaBlock>();
+        cameraTrack.Blocks = blocks;
 
+        for (int i = 0; i < segmentedRun.Tracks.Count; i++) {
+            var track = segmentedRun.Tracks[i];
+            CGameCtnMediaBlockEntity entityBlock = (CGameCtnMediaBlockEntity)track.Blocks[0];
+            var block = new CGameCtnMediaBlockCameraGame();
+            block.CreateChunk<CGameCtnMediaBlockCameraGame.Chunk03084007>();
+            block.Start = entityBlock.Keys[0].Time;
+            block.End = entityBlock.Keys[1].Time;
+            block.ClipEntId = i+1;
+            blocks.Add(block);
+        }
+
+        segmentedRun.Tracks.Add(cameraTrack);
 
         return segmentedRun;
     }

@@ -40,7 +40,7 @@ static class Utils
         blocks.Add(block);
 
         var track = new CGameCtnMediaTrack();
-        track.Name = $"Ghost:{replay.Ghosts[0].GhostNickname}";
+        track.Name = $"{replay.Ghosts[0].GhostNickname}";
         track.Blocks = blocks;
         track.CreateChunk<CGameCtnMediaTrack.Chunk03078001>();
         track.CreateChunk<CGameCtnMediaTrack.Chunk03078005>().Version = 1;
