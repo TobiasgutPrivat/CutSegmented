@@ -1,6 +1,5 @@
 using GBX.NET;
 using GBX.NET.Engines.Game;
-using GBX.NET.Engines.Plug;
 using GBX.NET.Engines.Scene;
 using TmEssentials;
 
@@ -8,7 +7,7 @@ static class SegmentedRun {
     static string templateName = "_Template.Replay.Gbx";
     public static CGameCtnMediaClip CreateSegmentedRun(string folder)
     {
-        TimeInt32 totalTime = TimeInt32.Zero;
+        // TimeInt32 totalTime = TimeInt32.Zero;
 
         string path = folder;
 
@@ -16,6 +15,8 @@ static class SegmentedRun {
 
         Gbx<CGameCtnReplayRecord> gbxTemplate = Gbx.Parse<CGameCtnReplayRecord>(path + @"\" + templateName);
         CGameCtnMediaClip segmentedRun = gbxTemplate.Node.Clip!;
+        List<CSceneVehicleVis.EntRecordDelta>? lastSegment = null;
+        CGameCtnMediaBlockEntity? lastBlock = null;
 
         foreach (string file in files)
         {
@@ -26,17 +27,17 @@ static class SegmentedRun {
 
             CGameCtnMediaTrack track = Utils.CreateTrackFromReplay(record);
             CGameCtnMediaBlockEntity block = (CGameCtnMediaBlockEntity)track.Blocks[0];
-            CPlugEntRecordData.EntRecordListElem run = record.RecordData.EntList.First(x => 
-                x.Samples.Count > 20 && x.Samples.First() is CSceneVehicleVis.EntRecordDelta); //20 is an aproximate to not select incomplete entries
+            List<CSceneVehicleVis.EntRecordDelta> segment = record.RecordData.EntList.First(x => 
+                x.Samples.Count > 20 && x.Samples.First() is CSceneVehicleVis.EntRecordDelta).Samples.OfType<CSceneVehicleVis.EntRecordDelta>().ToList(); //20 is an aproximate to not select incomplete entries
 
-            TimeInt32 EndTime = run.Samples.Last().Time;
+            TimeInt32 EndTime = segment.Last().Time;
 
             // check for big jumps in pos, indicator for respawn, remove all previous entries
             int? lastRespawnIndex = null;
-            for (int i = 1; i < run.Samples.Count; i++)
+            for (int i = 1; i < segment.Count; i++)
             {
-                CSceneVehicleVis.EntRecordDelta prev = run.Samples[i-1] as CSceneVehicleVis.EntRecordDelta;
-                CSceneVehicleVis.EntRecordDelta current = run.Samples[i] as CSceneVehicleVis.EntRecordDelta;
+                CSceneVehicleVis.EntRecordDelta prev = segment[i-1];
+                CSceneVehicleVis.EntRecordDelta current = segment[i];
                 if (prev != null && current != null) {
                     Vec3 diffrence = current.Position - prev.Position;
                     double distance = Math.Sqrt(diffrence.X * diffrence.X + diffrence.Y * diffrence.Y + diffrence.Z * diffrence.Z);
@@ -47,16 +48,42 @@ static class SegmentedRun {
                 }
             }
 
-            // time
-            // block.StartOffset = -totalTime; // relative to first key
-            foreach (var key in block.Keys!) {
-                key.Time += (TimeSingle)totalTime;
-            }
-            totalTime += EndTime;
+            CSceneVehicleVis.EntRecordDelta firstElement = lastRespawnIndex == null ? segment[0] : segment[lastRespawnIndex.Value]; //element where the wanted Part
+            block.StartOffset = firstElement.Time; // relative to first key
 
+            if (lastSegment != null) {
+                //find closest key in lastSegment for the start of the new segment
+                TimeSingle closestTime = TimeSingle.Zero; // offset relative to previous segment
+                double closestDistance = double.MaxValue;
+                foreach (var split in lastSegment) {
+                    var distance = Math.Sqrt(
+                        Math.Pow(split.Position.X - firstElement.Position.X, 2) +
+                        Math.Pow(split.Position.Y - firstElement.Position.Y, 2) +
+                        Math.Pow(split.Position.Z - firstElement.Position.Z, 2)
+                    );
+                    if (distance < closestDistance) {
+                        closestDistance = distance;  
+                        //TODO maybe align more precisely according to where in between 2 closest keys the new segment starts
+                        closestTime = split.Time;
+                    }
+                }
+                block.Keys[0].Time = lastBlock.Keys[0].Time - lastBlock.StartOffset + closestTime; // set start key to matching time in previous segment
+                lastBlock.Keys[1].Time = block.Keys[0].Time; // set end key of previous segment to the new start time
+            } else {
+                block.Keys[0].Time = new TimeSingle(0); // for the first segment, just set it to the offset
+            }
+
+            block.Keys[1].Time = block.Keys[0].Time - block.StartOffset + (TimeSingle)EndTime;
+            
+            lastSegment = segment;
+            lastBlock = block;
+            block.GhostName = (segmentedRun.Tracks.Count + 1).ToString();
 
             segmentedRun.Tracks.Add(track);
         }
+
+
+
         return segmentedRun;
     }
 }
