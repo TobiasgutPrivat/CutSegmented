@@ -5,7 +5,7 @@ using TmEssentials;
 
 static class SegmentedRun {
     static string templateName = "_Template.Replay.Gbx";
-    public static CGameCtnMediaClip CreateSegmentedRun(string folder)
+    public static CGameCtnMediaClip CreateSegmentedRun(string folder, List<int> skipIndexes)
     {
         // TimeInt32 totalTime = TimeInt32.Zero;
 
@@ -26,9 +26,12 @@ static class SegmentedRun {
             if (record.RecordData == null) continue;
 
             CGameCtnMediaTrack track = Utils.CreateTrackFromReplay(record);
+
             CGameCtnMediaBlockEntity block = (CGameCtnMediaBlockEntity)track.Blocks[0];
-            List<CSceneVehicleVis.EntRecordDelta> segment = record.RecordData.EntList.First(x => 
+
+            List<CSceneVehicleVis.EntRecordDelta> segment = record.RecordData.EntList.First(x => //First usually has last respawn
                 x.Samples.Count > 20 && x.Samples.First() is CSceneVehicleVis.EntRecordDelta).Samples.OfType<CSceneVehicleVis.EntRecordDelta>().ToList(); //20 is an aproximate to not select incomplete entries
+            //Theres usually one EntList with a full replay (longest one) but not needed in this case
 
             TimeInt32 EndTime = segment.Last().Time;
 
@@ -66,7 +69,9 @@ static class SegmentedRun {
                     index++;
                 }
                 // calc
-                int secondClosest = getDistance(firstElement, lastSegment[closestIndex + 1]) < getDistance(firstElement, lastSegment[Math.Max(closestIndex-1,0)]) ? closestIndex + 1 : Math.Max(closestIndex-1,0);
+                int nextIndex = Math.Min(closestIndex + 1, lastSegment.Count - 1);
+                int prevIndex = Math.Max(closestIndex-1,0);
+                int secondClosest = getDistance(firstElement, lastSegment[nextIndex]) < getDistance(firstElement, lastSegment[prevIndex]) ? nextIndex : prevIndex;
                 float firstDistance = getDistance(firstElement, lastSegment[closestIndex]);
                 float secondDistance = getDistance(firstElement, lastSegment[secondClosest]);
                 float firstWeight = 1 - (firstDistance / (firstDistance + secondDistance));
@@ -83,9 +88,11 @@ static class SegmentedRun {
             
             lastSegment = segment;
             lastBlock = block;
-            track.Name = $"Segment {segmentedRun.Tracks.Count + 1}";
+            track.Name = Path.GetFileName(file);
 
-            segmentedRun.Tracks.Add(track);
+            if (!skipIndexes.Contains(segmentedRun.Tracks.Count)){
+                segmentedRun.Tracks.Add(track);
+            }
         }
 
         // add camera track
