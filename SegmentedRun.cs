@@ -1,5 +1,6 @@
 using GBX.NET;
 using GBX.NET.Engines.Game;
+using GBX.NET.Engines.Plug;
 using GBX.NET.Engines.Scene;
 using TmEssentials;
 
@@ -11,13 +12,16 @@ static class SegmentedRun {
 
         string path = folder;
 
-        string[] files = Directory.GetFiles(path, "*.Replay.Gbx", SearchOption.AllDirectories);
+        string[] files = Directory.GetFiles(path, "*.Replay.Gbx", SearchOption.AllDirectories)
+            .Where(x => !x.EndsWith(templateName, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
         Gbx<CGameCtnReplayRecord> gbxTemplate = Gbx.Parse<CGameCtnReplayRecord>(path + @"\" + templateName);
         CGameCtnMediaClip segmentedRun = gbxTemplate.Node.Clip!;
         List<CSceneVehicleVis.EntRecordDelta>? lastSegment = null;
         CGameCtnMediaBlockEntity? lastBlock = null;
 
+        int fileNumber = 0;
         foreach (string file in files)
         {
             // read replay record
@@ -29,8 +33,7 @@ static class SegmentedRun {
 
             CGameCtnMediaBlockEntity block = (CGameCtnMediaBlockEntity)track.Blocks[0];
 
-            List<CSceneVehicleVis.EntRecordDelta> segment = record.RecordData.EntList.First(x => //First usually has last respawn
-                x.Samples.Count > 20 && x.Samples.First() is CSceneVehicleVis.EntRecordDelta).Samples.OfType<CSceneVehicleVis.EntRecordDelta>().ToList(); //20 is an aproximate to not select incomplete entries
+            List<CSceneVehicleVis.EntRecordDelta> segment = getFullSamples(record.RecordData.EntList);
             //Theres usually one EntList with a full replay (longest one) but not needed in this case
 
             TimeInt32 EndTime = segment.Last().Time;
@@ -46,7 +49,6 @@ static class SegmentedRun {
                     double distance = Math.Sqrt(diffrence.X * diffrence.X + diffrence.Y * diffrence.Y + diffrence.Z * diffrence.Z);
                     if (distance > 100) { //100 is an aproximate threshold, adjust as needed
                         lastRespawnIndex = i;
-                        break;
                     }
                 }
             }
@@ -86,13 +88,14 @@ static class SegmentedRun {
 
             block.Keys[1].Time = block.Keys[0].Time - block.StartOffset + (TimeSingle)EndTime;
             
-            lastSegment = segment;
+            lastSegment = lastRespawnIndex == null ? segment : segment.Skip(lastRespawnIndex.Value).ToList();
             lastBlock = block;
             track.Name = Path.GetFileName(file);
 
-            if (!skipIndexes.Contains(segmentedRun.Tracks.Count)){
+            if (!skipIndexes.Contains(fileNumber)){
                 segmentedRun.Tracks.Add(track);
             }
+            fileNumber++;
         }
 
         // add camera track
@@ -122,5 +125,19 @@ static class SegmentedRun {
     static float getDistance(CSceneVehicleVis.EntRecordDelta a, CSceneVehicleVis.EntRecordDelta b) {
         Vec3 diffrence = b.Position - a.Position;
         return (float)Math.Sqrt(diffrence.X * diffrence.X + diffrence.Y * diffrence.Y + diffrence.Z * diffrence.Z);
+    }
+
+    static List<CSceneVehicleVis.EntRecordDelta> getFullSamples(List<CPlugEntRecordData.EntRecordListElem> entList){
+        Dictionary<TimeInt32,CSceneVehicleVis.EntRecordDelta> fullSamples = [];
+        foreach (var elem in entList) {
+            if (elem.Samples.Count > 20 && elem.Samples.First() is CSceneVehicleVis.EntRecordDelta) { //20 is an aproximate to not select incomplete entries
+                foreach (var sample in elem.Samples) {
+                    if (sample is CSceneVehicleVis.EntRecordDelta delta) {
+                        fullSamples[delta.Time] = delta; // overwrite if already exists, should be identical anyways
+                    }
+                }
+            }
+        }
+        return fullSamples.Values.OrderBy(x => x.Time).ToList();
     }
 }
