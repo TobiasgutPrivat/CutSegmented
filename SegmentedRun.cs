@@ -98,6 +98,12 @@ static class SegmentedRun {
             fileNumber++;
         }
 
+        addCamTrack(segmentedRun);
+
+        return segmentedRun;
+    }
+
+    public static void addCamTrack(CGameCtnMediaClip segmentedRun) {
         // add camera track
         var cameraTrack = new CGameCtnMediaTrack();
         cameraTrack.CreateChunk<CGameCtnMediaTrack.Chunk03078001>();
@@ -118,8 +124,6 @@ static class SegmentedRun {
         }
 
         segmentedRun.Tracks.Add(cameraTrack);
-
-        return segmentedRun;
     }
 
     static float getDistance(CSceneVehicleVis.EntRecordDelta a, CSceneVehicleVis.EntRecordDelta b) {
