@@ -47,7 +47,7 @@ static class SegmentedRun {
                 if (prev != null && current != null) {
                     Vec3 diffrence = current.Position - prev.Position;
                     double distance = Math.Sqrt(diffrence.X * diffrence.X + diffrence.Y * diffrence.Y + diffrence.Z * diffrence.Z);
-                    if (distance > 100) { //100 is an aproximate threshold, adjust as needed
+                    if (distance > 20) { //20 is an aproximate threshold, adjust as needed
                         lastRespawnIndex = i;
                     }
                 }
@@ -65,7 +65,6 @@ static class SegmentedRun {
                     var distance = getDistance(firstElement, split);
                     if (distance < closestDistance) {
                         closestDistance = distance;  
-                        //TODO maybe align more precisely according to where in between 2 closest keys the new segment starts
                         closestIndex = index;
                     }
                     index++;
